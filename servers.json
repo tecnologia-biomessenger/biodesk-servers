@@ -1,0 +1,6 @@
+{
+  "servidores": [
+    {"nome": "BATISTA BRASILIA", "ip": "", "rede": "privada"},
+    {"nome": "COC LAGO NORTE", "ip": "", "rede": "privada"}
+  ]
+}
