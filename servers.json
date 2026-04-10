@@ -1,11 +1,6 @@
 {
   "servidores": [
     {
-      "nome": "COC LAGO NORTE",
-      "ip": "100.118.5.33",
-      "rede": "privada"
-    },
-    {
       "nome": "COLÉGIO BATISTA BRASILIA",
       "ip": "100.82.231.54",
       "rede": "privada"
