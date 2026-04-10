@@ -9,6 +9,11 @@
       "nome": "BATISTA BRASÍLIA",
       "ip": "100.82.231.54",
       "rede": "privada"
+    },
+    {
+      "nome": "BATISTA BRASILEIRO (SP)",
+      "ip": "100.78.45.19",
+      "rede": "privada"
     }
   ]
 }
