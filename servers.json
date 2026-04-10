@@ -4,6 +4,11 @@
       "nome": "BATISTA BRASILIA",
       "ip": "",
       "rede": "privada"
+    },
+    {
+      "nome": "COC LAGO NORTE",
+      "ip": "100.118.5.33",
+      "rede": "privada"
     }
   ]
 }
