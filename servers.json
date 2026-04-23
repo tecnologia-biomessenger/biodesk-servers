@@ -32,6 +32,12 @@
       "ip": "100.67.3.97",
       "rede": "privada",
       "usuario": "BIomessenger"
+    },
+    {
+      "nome": "GALOIS LE PETIT",
+      "ip": "100.124.102.26",
+      "rede": "privada",
+      "usuario": "SERVIDOR BIO"
     }
   ]
 }
