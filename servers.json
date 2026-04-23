@@ -26,6 +26,12 @@
       "ip": "100.78.178.114",
       "rede": "privada",
       "usuario": "Biomessenger"
+    },
+    {
+      "nome": "GALOIS",
+      "ip": "100.67.3.97",
+      "rede": "privada",
+      "usuario": "BIomessenger"
     }
   ]
 }
