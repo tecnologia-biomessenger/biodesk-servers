@@ -20,6 +20,12 @@
       "ip": "100.65.138.1",
       "rede": "privada",
       "usuario": "ASA SUL"
+    },
+    {
+      "nome": "BATISTA PALMAS",
+      "ip": "100.78.178.114",
+      "rede": "privada",
+      "usuario": "Biomessenger"
     }
   ]
 }
