@@ -1,5 +1,5 @@
 {
   "version": "2.1.3",
   "url": "https://github.com/tecnologia-biomessenger/biodesk-servers/releases/download/v2.1.3/BioDesk.Setup.2.1.3.exe",
-  "changelog": "Nova interface v2 com splash screen, conexão rápida e histórico"
+  "changelog": "Autostart do BioDesk e RDP ao iniciar o Windows"
 }
