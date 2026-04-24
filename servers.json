@@ -38,6 +38,12 @@
       "ip": "100.124.102.26",
       "rede": "privada",
       "usuario": "SERVIDOR BIO"
+    },
+    {
+      "nome": "LOGOS",
+      "ip": "100.127.150.25",
+      "rede": "privada",
+      "usuario": "Biomessenger"
     }
   ]
 }
