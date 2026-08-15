@@ -1,0 +1,8 @@
+# O gradlew roda no Linux (CI) -> precisa de LF, nunca CRLF.
+gradlew text eol=lf
+*.sh text eol=lf
+# Binarios (nao normalizar linha).
+*.jar binary
+*.png binary
+*.webp binary
+*.keystore binary

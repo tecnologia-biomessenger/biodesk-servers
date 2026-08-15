@@ -1,0 +1,9 @@
+node_modules/
+dist/
+server/data/
+*.log
+.DS_Store
+
+# segredos locais (nunca commitar)
+.env
+.env.*

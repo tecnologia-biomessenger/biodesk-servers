@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>BioDesk — Controle pelo celular</title>
+<meta name="theme-color" content="#0b0f0e" />
+<style>
+  :root{
+    --bg:#0b0f0e; --surface:#131b19; --sunken:#0a0e0d; --border:#223029;
+    --text:#eaf2ef; --dim:#9fb2ad; --faint:#6b807b; --brand:#17b89f; --brand2:#0e9280;
+    --ok:#46d18a; --err:#ef6a2e; --mono:'JetBrains Mono',ui-monospace,monospace;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden;
+       overscroll-behavior:none;touch-action:none}
+  .oculto{display:none!important}
+
+  /* ---- Tela de conexao ---- */
+  #conectar{min-height:100%;display:flex;flex-direction:column;justify-content:center;
+            align-items:center;padding:28px 22px;gap:6px;text-align:center}
+  .marca{display:flex;align-items:center;gap:10px;font-weight:800;font-size:26px;letter-spacing:-.02em;margin-bottom:6px}
+  .marca b{color:var(--brand)}
+  .sub{color:var(--dim);font-size:14.5px;margin-bottom:22px;max-width:320px}
+  .campo{width:100%;max-width:340px;text-align:left;margin-bottom:14px}
+  .campo label{display:block;font-size:11px;font-weight:700;letter-spacing:.08em;
+               text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+  .campo input{width:100%;background:var(--sunken);border:1px solid var(--border);
+               border-radius:12px;padding:15px 16px;color:var(--text);font-size:17px;
+               font-family:var(--mono);letter-spacing:1px;outline:none}
+  .campo input:focus{border-color:var(--brand)}
+  .btn{width:100%;max-width:340px;border:none;border-radius:12px;padding:16px;
+       font-family:var(--font);font-weight:700;font-size:16.5px;cursor:pointer;
+       background:linear-gradient(180deg,var(--brand),var(--brand2));color:#fff}
+  .btn:disabled{opacity:.6}
+  #status{margin-top:16px;font-size:13.5px;color:var(--faint);min-height:20px}
+  #status.err{color:var(--err)}
+  #status.ok{color:var(--ok)}
+  .rodape{margin-top:26px;font-size:12px;color:var(--faint);max-width:320px;line-height:1.5}
+
+  /* ---- Tela de sessao (video + controles) ---- */
+  #sessao{position:fixed;inset:0;background:#000;display:flex}
+  #tela{width:100%;height:100%;object-fit:contain;background:#000;touch-action:none}
+  /* barra flutuante de controles */
+  .barra{position:fixed;top:calc(8px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+         display:flex;gap:8px;background:rgba(19,27,25,.86);backdrop-filter:blur(10px);
+         border:1px solid var(--border);border-radius:999px;padding:6px;z-index:10}
+  .barra button{border:none;background:transparent;color:var(--text);width:42px;height:42px;
+                border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center}
+  .barra button:active{background:rgba(255,255,255,.1)}
+  .barra button.on{background:var(--brand);color:#fff}
+  .barra .sair{background:var(--err);color:#fff}
+  .dica-toque{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;
+              transform:translateX(-50%);background:rgba(19,27,25,.86);border:1px solid var(--border);
+              border-radius:999px;padding:7px 16px;font-size:12.5px;color:var(--dim);z-index:10;
+              max-width:92vw;text-align:center}
+  #teclado{position:fixed;opacity:0;height:0;width:0;border:0;padding:0}
+</style>
+</head>
+<body>
+
+<!-- ============ CONECTAR ============ -->
+<div id="conectar">
+  <div class="marca"><b>Bio</b>Desk</div>
+  <div class="sub">Controle um computador à distância pelo seu celular.</div>
+  <div class="campo">
+    <label for="in-id">ID do computador</label>
+    <input id="in-id" inputmode="numeric" autocomplete="off" placeholder="482 913 705" />
+  </div>
+  <div class="campo">
+    <label for="in-senha">Senha</label>
+    <input id="in-senha" type="password" autocomplete="off" placeholder="senha de sessão ou fixa" />
+  </div>
+  <button id="btn-conectar" class="btn">Conectar</button>
+  <div id="status"></div>
+  <div class="rodape">Peça o <b>ID</b> e a <b>senha</b> a quem está no computador. A conexão é criptografada ponta a ponta.</div>
+</div>
+
+<!-- ============ SESSAO ============ -->
+<div id="sessao" class="oculto">
+  <video id="tela" autoplay playsinline></video>
+  <div class="barra">
+    <button id="b-teclado" title="Teclado">⌨️</button>
+    <button id="b-sair" class="sair" title="Encerrar">✕</button>
+  </div>
+  <div id="dica" class="dica-toque">Deslize = mover · toque = clique · pinça = zoom · 2 dedos = rolar / direito</div>
+  <input id="teclado" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+</div>
+
+<script>
+  var SIGNALING = "wss://biodesk-servers.onrender.com";
+  // ICE chega do servidor (ice-config) logo apos o "guest"; TURN entra sem atualizar o app.
+  var ICE = [{ urls: "stun:stun.l.google.com:19302" }];
+  var ICE_RELAY = false;
+
+  var ws = null, pc = null, canalInput = null, parceiro = null, meuId = null;
+  var conectando = false;
+
+  var el = function(id){ return document.getElementById(id); };
+  var video = el("tela");
+
+  function setStatus(txt, cls){ var s=el("status"); s.textContent=txt||""; s.className=cls||""; }
+
+  // ---------- Conexao com o servidor ----------
+  el("btn-conectar").addEventListener("click", iniciar);
+  el("in-senha").addEventListener("keydown", function(e){ if(e.key==="Enter") iniciar(); });
+
+  function iniciar(){
+    var id = el("in-id").value.replace(/\D/g,"");
+    var senha = el("in-senha").value;
+    if(id.length < 9){ setStatus("Digite o ID completo (9 números).","err"); return; }
+    if(!senha){ setStatus("Digite a senha.","err"); return; }
+    conectando = true;
+    el("btn-conectar").disabled = true;
+    setStatus("Conectando ao servidor…");
+    ws = new WebSocket(SIGNALING);
+    ws.onopen = function(){ ws.send(JSON.stringify({ type:"guest" })); };
+    ws.onmessage = onMsg.bind(null, id, senha);
+    ws.onerror = function(){ falhar("Não foi possível falar com o servidor."); };
+    ws.onclose = function(){ if(conectando) falhar("Conexão perdida. Tente de novo."); };
+    // timeout de seguranca
+    setTimeout(function(){ if(conectando && !parceiro) falhar("Sem resposta. Confira se o computador está com o BioDesk aberto."); }, 20000);
+  }
+
+  function falhar(msg){
+    conectando = false;
+    el("btn-conectar").disabled = false;
+    setStatus(msg, "err");
+    limpar();
+  }
+
+  async function onMsg(id, senha, ev){
+    var msg = JSON.parse(ev.data);
+    if(msg.type === "ice-config"){
+      if(Array.isArray(msg.iceServers) && msg.iceServers.length) ICE = msg.iceServers;
+      ICE_RELAY = !!msg.relayOnly && ICE.some(function(s){ return /turn/i.test(String(s.urls)); });
+    } else if(msg.type === "registered"){
+      meuId = msg.id;
+      setStatus("Conectando ao computador…");
+      ws.send(JSON.stringify({ type:"connect", target:id, password:senha }));
+    } else if(msg.type === "connect-ok"){
+      parceiro = id;
+      setStatus("Autorizado. Recebendo a tela…","ok");
+    } else if(msg.type === "connect-error"){
+      falhar(msg.reason || "Não foi possível conectar.");
+    } else if(msg.type === "signal"){
+      await tratarSinal(msg.from, msg.data);
+    } else if(msg.type === "bye" || msg.type === "substituido"){
+      encerrar();
+    }
+  }
+
+  // ---------- WebRTC (lado controlador) ----------
+  function novaPc(){
+    var conn = new RTCPeerConnection({ iceServers: ICE, iceTransportPolicy: ICE_RELAY ? "relay" : "all" });
+    conn.onicecandidate = function(e){ if(e.candidate) enviarSinal({ ice: e.candidate }); };
+    conn.onconnectionstatechange = function(){
+      if(["failed","disconnected","closed"].indexOf(conn.connectionState) >= 0) encerrar();
+    };
+    conn.ondatachannel = function(e){
+      if(e.channel.label === "arquivos"){ return; } // transferencia: fora do MVP mobile
+      canalInput = e.channel; // canal de mouse/teclado -> nós ENVIAMOS por aqui
+    };
+    conn.ontrack = function(e){
+      video.srcObject = e.streams[0];
+      entrarNaSessao();
+    };
+    return conn;
+  }
+
+  function enviarSinal(data){
+    if(ws && ws.readyState === 1 && parceiro) ws.send(JSON.stringify({ type:"signal", to:parceiro, data:data }));
+  }
+
+  async function tratarSinal(from, data){
+    parceiro = from;
+    if(data.sdp && data.sdp.type === "offer" && !pc) pc = novaPc();
+    if(data.sdp){
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if(data.sdp.type === "offer"){
+        var answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        enviarSinal({ sdp: pc.localDescription });
+      }
+    } else if(data.ice){
+      try { await pc.addIceCandidate(new RTCIceCandidate(data.ice)); } catch(e){}
+    }
+  }
+
+  // ---------- Entrar / sair da sessao ----------
+  function entrarNaSessao(){
+    conectando = false;
+    resetZoom();
+    el("conectar").classList.add("oculto");
+    el("sessao").classList.remove("oculto");
+    setTimeout(function(){ el("dica").classList.add("oculto"); }, 6000);
+  }
+  function encerrar(){
+    if(parceiro && ws && ws.readyState === 1) ws.send(JSON.stringify({ type:"bye", to:parceiro }));
+    limpar();
+    el("sessao").classList.add("oculto");
+    el("conectar").classList.remove("oculto");
+    el("btn-conectar").disabled = false;
+    setStatus("");
+  }
+  function limpar(){
+    conectando = false;
+    try{ if(pc) pc.close(); }catch(e){}
+    pc = null; canalInput = null; parceiro = null;
+    try{ if(ws) ws.close(); }catch(e){}
+    ws = null;
+    video.srcObject = null;
+    el("dica").classList.remove("oculto");
+  }
+  el("b-sair").addEventListener("click", encerrar);
+
+  // ---------- Envio de input ----------
+  function enviarInput(cmd){ if(canalInput && canalInput.readyState === "open") canalInput.send(JSON.stringify(cmd)); }
+
+  // Coords normalizadas 0..1 sobre o CONTEUDO do video (respeita as bordas pretas).
+  function norm(clientX, clientY){
+    var r = video.getBoundingClientRect();
+    var vw = video.videoWidth || r.width, vh = video.videoHeight || r.height;
+    var escala = Math.min(r.width / vw, r.height / vh);
+    var cw = vw * escala, ch = vh * escala;
+    var ox = r.left + (r.width - cw)/2, oy = r.top + (r.height - ch)/2;
+    var x = (clientX - ox)/cw, y = (clientY - oy)/ch;
+    return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+  }
+
+  // ---------- Toque: TOUCHPAD (1 dedo) + ZOOM/PAN (pinça, 2 dedos) ----------
+  // 1 dedo desliza = mover o cursor (trackpad). 2 dedos = pinça pra ampliar +
+  // arrastar pra ver (pan); sem zoom, 2 dedos na vertical = rolar; toque de 2
+  // dedos = clique direito. Ao ampliar, o cursor fica mais preciso (/zoom).
+  var cursor = { x: 0.5, y: 0.5 };
+  var SENS = 1.5;
+  var toque = null;               // 1 dedo:  { lastX, lastY, t, moveu }
+  var g2 = null;                  // 2 dedos: { dist, mx, my, moved, t }
+  var travar1 = false;            // ignora 1 dedo ate soltar todos (evita "pulo")
+  var ultimoTap = 0, arrastando = false, timerArrasto = null;
+  var zoom = 1, panX = 0, panY = 0;
+
+  function clamp01(v){ return Math.min(1, Math.max(0, v)); }
+  function aplicarTransform(){
+    video.style.transformOrigin = "0 0";
+    video.style.transform = "translate(" + panX + "px," + panY + "px) scale(" + zoom + ")";
+  }
+  function clampPan(){
+    var vw = window.innerWidth, vh = window.innerHeight;
+    panX = Math.min(0, Math.max(vw * (1 - zoom), panX));
+    panY = Math.min(0, Math.max(vh * (1 - zoom), panY));
+  }
+  function distDois(t){ return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+  function resetZoom(){ zoom = 1; panX = 0; panY = 0; video.style.transform = ""; }
+
+  function moverCursor(dxpx, dypx){
+    var vw = window.innerWidth, vh = window.innerHeight;
+    cursor.x = clamp01(cursor.x + (dxpx / vw) * SENS / zoom); // /zoom = precisao ao ampliar
+    cursor.y = clamp01(cursor.y + (dypx / vh) * SENS / zoom);
+    enviarInput({ kind:"move", x:cursor.x, y:cursor.y });
+  }
+  function clique(botao){
+    enviarInput({ kind:"down", x:cursor.x, y:cursor.y, button:botao });
+    enviarInput({ kind:"up", x:cursor.x, y:cursor.y, button:botao });
+  }
+
+  video.addEventListener("touchstart", function(e){
+    if(e.touches.length === 2){
+      var t = e.touches;
+      g2 = { dist: distDois(t), mx:(t[0].clientX+t[1].clientX)/2, my:(t[0].clientY+t[1].clientY)/2, moved:false, t:Date.now() };
+      toque = null; clearTimeout(timerArrasto); arrastando = false; travar1 = true;
+      return;
+    }
+    if(travar1) return;
+    var t0 = e.touches[0];
+    toque = { lastX:t0.clientX, lastY:t0.clientY, t:Date.now(), moveu:false };
+    arrastando = false;
+    clearTimeout(timerArrasto);
+    timerArrasto = setTimeout(function(){
+      if(toque && !toque.moveu){ arrastando = true; enviarInput({ kind:"down", x:cursor.x, y:cursor.y, button:0 }); if(navigator.vibrate) navigator.vibrate(18); }
+    }, 500);
+  }, { passive:false });
+
+  video.addEventListener("touchmove", function(e){
+    e.preventDefault();
+    if(g2 && e.touches.length >= 2){
+      var t = e.touches;
+      var d = distDois(t), mx = (t[0].clientX+t[1].clientX)/2, my = (t[0].clientY+t[1].clientY)/2;
+      if(Math.abs(d - g2.dist) > 2){            // PINÇA -> zoom em torno do ponto medio
+        var novo = Math.min(4, Math.max(1, zoom * (d / g2.dist)));
+        var f = novo / zoom;
+        panX = mx - (mx - panX) * f;
+        panY = my - (my - panY) * f;
+        zoom = novo;
+        if(zoom <= 1.01){ zoom = 1; panX = 0; panY = 0; }
+        g2.moved = true;
+      }
+      var dmx = mx - g2.mx, dmy = my - g2.my;
+      if(zoom > 1.01){                          // ampliado: 2 dedos arrastam (pan)
+        panX += dmx; panY += dmy;
+        if(Math.abs(dmx) > 1 || Math.abs(dmy) > 1) g2.moved = true;
+      } else if(Math.abs(dmy) > 1){             // sem zoom: 2 dedos vertical = rolar
+        enviarInput({ kind:"scroll", dy:-dmy*2 }); g2.moved = true;
+      }
+      g2.dist = d; g2.mx = mx; g2.my = my;
+      clampPan(); aplicarTransform();
+      return;
+    }
+    if(!toque) return;
+    var tt = e.touches[0];
+    var dx = tt.clientX - toque.lastX, dy = tt.clientY - toque.lastY;
+    toque.lastX = tt.clientX; toque.lastY = tt.clientY;
+    if(Math.abs(dx) > 2 || Math.abs(dy) > 2) toque.moveu = true;
+    moverCursor(dx, dy);
+  }, { passive:false });
+
+  video.addEventListener("touchend", function(e){
+    clearTimeout(timerArrasto);
+    if(g2){
+      if(!g2.moved && Date.now() - g2.t < 400) clique(2); // toque de 2 dedos = direito
+      g2 = null;
+    }
+    if(e.touches.length === 0) travar1 = false;
+    if(travar1){ toque = null; return; }
+    if(!toque){ arrastando = false; return; }
+    if(arrastando){
+      enviarInput({ kind:"up", x:cursor.x, y:cursor.y, button:0 });
+      arrastando = false; toque = null; return;
+    }
+    if(!toque.moveu && Date.now() - toque.t < 400){
+      var agora = Date.now();
+      if(agora - ultimoTap < 300) enviarInput({ kind:"dblclick", x:cursor.x, y:cursor.y });
+      else clique(0);
+      ultimoTap = agora;
+    }
+    toque = null;
+  }, { passive:false });
+
+  // ---------- Teclado ----------
+  var campoTeclado = el("teclado");
+  el("b-teclado").addEventListener("click", function(){
+    this.classList.toggle("on");
+    if(this.classList.contains("on")){ campoTeclado.value=""; campoTeclado.focus(); }
+    else campoTeclado.blur();
+  });
+  campoTeclado.addEventListener("blur", function(){ el("b-teclado").classList.remove("on"); });
+  // Texto digitado (Android dispara 'input' com o caractere).
+  campoTeclado.addEventListener("input", function(e){
+    if(e.inputType === "insertText" && e.data){
+      for(var i=0;i<e.data.length;i++) enviarInput({ kind:"type", text:e.data[i] });
+    } else if(e.inputType === "deleteContentBackward"){
+      enviarInput({ kind:"tecla", key:"Backspace" });
+    }
+    campoTeclado.value = ""; // mantem vazio
+  });
+  // Teclas especiais que disparam keydown no celular (Enter, setas…).
+  campoTeclado.addEventListener("keydown", function(e){
+    var esp = ["Enter","Backspace","Tab","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Escape"];
+    if(esp.indexOf(e.key) >= 0){
+      e.preventDefault();
+      enviarInput({ kind:"tecla", key:e.key, ctrl:e.ctrlKey, alt:e.altKey, shift:e.shiftKey, meta:e.metaKey });
+    }
+  });
+
+  // Pre-preenche o ID se veio por ?id= na URL.
+  var q = new URLSearchParams(location.search);
+  if(q.get("id")) el("in-id").value = q.get("id");
+</script>
+</body>
+</html>
